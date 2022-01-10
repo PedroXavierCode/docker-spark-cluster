@@ -11,6 +11,7 @@ services:
     environment:
       - SPARK_LOCAL_IP=spark-master
       - SPARK_WORKLOAD=master
+
   spark-worker-a:
     image: cluster-apache-spark:3.0.2
     ports:
@@ -29,6 +30,8 @@ services:
     volumes:
        - ./apps:/opt/spark-apps
        - ./data:/opt/spark-data
+
+
   spark-worker-b:
     image: cluster-apache-spark:3.0.2
     ports:
@@ -47,6 +50,8 @@ services:
     volumes:
         - ./apps:/opt/spark-apps
         - ./data:/opt/spark-data
+
+
   demo-database:
     image: postgres:11.7-alpine
     ports: 
