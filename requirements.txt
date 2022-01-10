@@ -1,0 +1,12 @@
+pandas
+numpy
+matplotlib
+datetime
+dateparser
+resource
+sqlalchemy
+statsmodels
+pyspark
+sklearn
+synapse
+joblibspark
