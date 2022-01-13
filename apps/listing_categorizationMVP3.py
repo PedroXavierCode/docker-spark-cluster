@@ -15,8 +15,10 @@ import sklearn as skl
 from sklearn.linear_model import QuantileRegressor
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+import synapse
 #import synapse.ml
-#from synapse.ml.lightgbm import LightGBMClassifier, LightGBMClassificationModel
+#from synapse.ml.lightgbm import *
+#from synapse.ml.lightgbm import LightGBMClassifier, LightGBMClassificationModel, LightGBMRegressor
 #from synapse.ml.train import ComputeModelStatistics
 
 from pyspark.ml.feature import VectorAssembler
@@ -24,6 +26,7 @@ from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.sql import SparkSession
 from pyspark.context import SparkContext
 import pyspark.sql.functions as F
+from pyspark.ml.functions import vector_to_array
 #from pyspark.sql.functions import from_unixtime, unix_timestamp, date_format, to_date, col
 from pyspark.sql.types import StructField, StructType, IntegerType, StringType, BooleanType, DateType, ArrayType
 
@@ -34,6 +37,7 @@ def init_spark():
     spark = SparkSession.builder\
         .appName("Revenue Models")\
         .config("spark.jars", "/opt/spark-apps/postgresql-42.2.22.jar")\
+        .config("spark.jars.packages", "com.microsoft.azure:synapseml_2.12:0.9.5") \
         .getOrCreate()
     sc = spark.sparkContext
     return spark,sc
@@ -47,13 +51,15 @@ def main():
     "password": "casa1234",
     "driver": "org.postgresql.Driver"
     }
-    file = "/opt/spark-data/input_spark_3k.csv"
+    file = "/opt/spark-data/input_spark_1k.csv"
     spark,sc = init_spark()
 
+    import synapse.ml
     clean_data = spark.read.load(file,format = "csv", inferSchema="true", header="true")
 
 
     #clean_data.printSchema()
+    #clean_data.show()
     #clean_data.select('date').show()
 
     past_df = clean_data.filter(clean_data.date < pd.to_datetime('today'))
@@ -68,15 +74,35 @@ def main():
     #    y_pred = qr.fit(past_df, future_df).predict(past_df)
     #    predictions[quantile] = y_pred
 
-    X = np.array(pd.to_numeric(past_df.select('bedrooms','month').collect(), errors='coerce'))
-    Y = np.array(past_df.select('price_string').collect())
+    #df = spark.createDataFrame([past_df.select('bedrooms','month')],[past_df.select('price_string').alias("Y")])
+    #vecAssembler = VectorAssembler(outputCol="price")
+    #vecAssembler.setInputCols(['bedrooms','month'])
+    #vecAssembler.transform(df).head().price
+
+    vecAssemblerX = VectorAssembler(outputCol="X")
+    vecAssemblerX.setInputCols(['month','bedrooms'])
+    X = vecAssemblerX.transform(past_df).select(vector_to_array(F.col('X'))).show()
+    #X = F.array(F.col(X))
+    #X = F.array(vecAssemblerX.transform(past_df).select(vector_to_array(F.col('X'))))
+    #past_df_new = X.withColumn(F.col('X'))
+    #X = vecAssemblerX.getInputCols()
+    #vecAssemblerY = VectorAssembler(outputCol="Y")
+    #vecAssemblerY.setOutputCol(["price_string"])
+    #vecAssemblerY.transform(past_df).show()
+    print(type(X))
+
+    #X = np.array(pd.to_numeric(past_df.select('bedrooms','month').collect(), errors='coerce'))
+    #X = past_df.select('X').show()
+    #Y = np.array(past_df.select('price_string').collect())
+    #Y = past_df.select(vector_to_array(F.col('price_string'))).show()
+    Y = past_df.select(F.array('price_string')).show()
     #Y.replace(to_replace=pd.NA, value=None, inplace=True)
     qr = QuantileRegressor(quantile=0.5,alpha=0)
-    #print(X)
+    print(type(Y))
     #print(Y)
 
-    #with parallel_backend('spark,n_jobs=2'):
-    model = qr.fit(X,Y.flatten()).predict(X)
+    #with parallel_backend('spark',n_jobs=2):
+    #model = qr.fit(X,Y).predict(X)
     #print(model)
 
     #plt.scatter(Y,model, color = "red")
@@ -91,6 +117,7 @@ def main():
     
     print('Number of apartment dates above model:', len(Y[(Y.flatten()>model)]))
     print('Number of apartment dates below model:', len(Y[(Y.flatten()<model)]))
+
 
 if __name__ == '__main__':
   main()
